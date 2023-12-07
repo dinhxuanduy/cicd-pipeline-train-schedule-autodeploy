@@ -32,7 +32,7 @@ pipeline {
             }
             steps {
                 script {
-                    docker.withRegistry('https://registry.hub.docker.com', 'dockerhub_id') {
+                    docker.withRegistry('https://registry.hub.docker.com', 'docker_hub_login') {
                         app.push("${env.BUILD_NUMBER}")
                         app.push("latest")
                     }
@@ -59,12 +59,15 @@ pipeline {
                 branch 'master'
             }
             steps {
-                def response = httpRequest (
-                    url: "http://$KUBE_MASTER_IP:8081/"
-                    timeout: 30
-                )
-                if (response.status != 200) {
-                    error("Smoke Test Failed!")
+                script {
+                    sleep (time: 5)
+                    def response = httpRequest (
+                        url: "http://$KUBE_MASTER_IP:8081/",
+                        timeout: 30
+                    )
+                    if (response.status != 200) {
+                        error("Smoke test against canary deployment failed.")
+                    }
                 }
             }
         }
@@ -72,11 +75,7 @@ pipeline {
             when {
                 branch 'master'
             }
-            // environment { 
-            //     CANARY_REPLICAS = 0
-            // }
             steps {
-                // input 'Deploy to Production?'
                 milestone(1)
                 kubernetesDeploy(
                     kubeconfigId: 'kubeconfig',
@@ -88,7 +87,7 @@ pipeline {
     }
     post {
         cleanup {
-            kubernetesDeploy(
+            kubernetesDeploy (
                 kubeconfigId: 'kubeconfig',
                 configs: 'train-schedule-kube-canary.yml',
                 enableConfigSubstitution: true
